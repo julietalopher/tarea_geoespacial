@@ -1,0 +1,332 @@
+---
+title: "Tarea 3: Procesamiento de datos geoespaciales"
+author: "Manfred Salas y Julieta López"
+format: 
+  html:
+    toc: true
+    toc-title: Contenido
+    toc-depth: 4
+editor: visual
+---
+
+## Introducción
+
+En el siguiente documento se presenta un breve análisis de la distribución de las diferentes especies de felinos que se encuentran en Costa Rica, los datos utilizados para este trabajo pueden ser encontrados en:
+
+-   [Registros de presencia de felinos de Costa Rica, agrupados por la Infraestructura Mundial de Información en Biodiversidad (GBIF)](https://doi.org/10.15468/dl.dwpgps).
+-   [Áreas silvestres protegidas (ASP) de Costa Rica, publicadas por el Sistema Nacional de Áreas de Conservación (Sinac) en el Sistema Nacional de Información Territorial (SNIT)](https://www.snitcr.go.cr/ico_servicios_ogc_info?k=bm9kbzo6NDA=&nombre=SINAC).
+-   Capa raster de [WorldClim](https://www.worldclim.org/) de altitud de Costa Rica (resolución de 30 x 30 segundos, disponible para descarga directa [aquí](https://github.com/pf0953-programacionr/2022-ii/blob/main/datos/worldclim/altitud.tif))
+
+## Librerias a utilizar
+
+Para este trabajo se utilizaron las librerías de `tidyverse` que incluye los paquetes de `ggplot2` y `reader` y `DT`para el manejo de datos y generación de gráficos y tablas, así como el paquete de `plotly` para la visualización de gráficos interactivos y `scales` y `RColorBrewer`como ayuda para dar formato a los ejes de los gráficos de sin utilizar un tema en específico. Para la generación de mapas interactivos, se utilizaron las librerias de `sf` que permite el manejo de datos con geometrías de tipo vectorial y `terra` que también permite el manejo de datos ráster. También se utilizaron los paquetes de `leaflet`, `leaflet.extras` y `leafem` que generan mapas interactivos.
+
+La instalación de los paquetes se realiza a través de la función `install.packages()`.
+
+```{r}
+#| label: instalacion-de-paquetes
+#| eval: false
+#| warning: false
+
+# Instalación de tidyverse con todos sus paquetes
+install.packages("tidyverse")
+
+# Instalación de plotly
+install.packages("plotly")
+
+# Instalación de DT
+install.packages("DT")
+
+# Instalación de scales
+install.packages("scales")
+
+# Instalación de sf
+install.packages("sf")
+
+# Instalación de terra
+install.packages("terra")
+
+# Instalación de raster
+install.packages("raster")
+
+# Instalación de gdal
+install.packages("rgdal")
+
+# Instalación de leaflet
+install.packages("leaflet")
+
+# Instalación de leaflet.extras (funciones adicionales de leaflet)
+install.packages("leaflet.extras")
+
+# Instalación de leaflem (funciones adicionales de leaflet)
+install.packages("leafem")
+```
+
+Después de la instalación, se cargan los paquetes con la función de `library()`.
+
+```{r}
+#| label: carga-de-librerias
+#| message: false
+#| warning: false
+
+library(tidyverse) #Carga de tidyverse (incluye ggplot3 y readr)
+library(plotly) # Carga de plotly
+library(DT) # Carga de DT
+library(dplyr) # Carga de dplyr
+library(scales) # Carga de scales
+library(sf) #Carga de sf
+library(terra) #Carga de terra
+library(raster) #Carga de raster
+library(rgdal) #Carga de gdal
+library(leaflet) #Carga de leaflet para mapas interactivos
+library(leaflet.extras)
+library(leafem)
+library(data.table)
+
+
+```
+
+## Datos
+
+### Ingreso de datos y selección de columnas
+
+Se cargan en un dataframe de R con la función de `read.delim()` de la librería `readr`, el argumento de `col_select` permite seleccionar únicamente las columnas de interés en el análisis de datos.
+
+Para cargar datos vectoriales se utiliza la función de `st_read()` del paquete `sf` y para los datos raster la de `rast()` de `terra`.
+
+```{r}
+#| label: carga-datos-covid
+#| echo: true
+#| include: true
+#| message: false
+#| warning: false
+
+#Carga de datos puntuales de felinos como dataframe
+felinos <-
+  read_delim(
+    file = "datos/felinos.csv",
+    col_select = c( #Selección de columnas de interes
+      "species",
+      "stateProvince",
+      "locality",
+      "eventDate",
+      "decimalLongitude",
+      "decimalLatitude",
+    ) 
+  )
+### de manera opcional se puede retirar los datos nulos  con la siguiente línea:"felinos <-drop_na(data = felinos).
+
+
+#Carga datos vectoriales de Aréas Silvestres Protegidas
+ASP <-
+  st_read(
+    "datos/ASP.shp",
+    quiet = TRUE # para evitar el despliegue de mensajes
+  )
+
+#Carga de datos raster de altitud
+altitud <- rast("datos/altitud.tif")
+
+```
+
+#### Cambio de nombre de columnas y tipo de datos
+
+Para renombrar las columnas del dataframe y facilitar su manejo, se usa la función de `rename()` y para cambiar el tipo de datos se utiliza la función de `mutate()`, ambas del paquete `dplyr`. La función `as.Date()` pertenece al paquete base de R y convierte los datos a tipo *date*.
+
+```{r}
+#| label: cambio-nombre-y-tipo-columnas
+
+felinos <-
+  felinos |>
+  rename(
+    especie = species,
+    provincia = stateProvince,
+    localidad = locality,
+    fecha = eventDate,
+    long= decimalLongitude,
+    lat= decimalLatitude
+  ) |>
+  mutate(fecha = as.Date(fecha, format = "%d/%m/%Y"))
+```
+
+## 1. Registro de felinos en Costa Rica
+
+Para crear una tabla interactiva solo con los campos de interes utilizamos la función de `select()` del paquete de `dplyr`. Para la visualización de la tabla de datos se utiliza `datatable()` la función principal del paquete `DT`.
+
+```{r}
+#| label: tabla-felino
+#| eval: false
+
+felinos |>
+  select(especie, provincia, localidad, fecha) |>
+  datatable(options = list(
+    pageLength = 5,
+    language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json')),
+    colnames = c('ID',
+                  'Especie',
+                  'Provincia',
+                  'Localidad',
+                  'Fecha de registro'), # Cambia los nombres de las columnas únicamente para la visualización en la tabla y no en la base de datos original
+    caption = "Tabla 1. Registros de especies de felinos en Costa Rica") # Agrega subtítulo a la tabla
+```
+
+![Registro de especies de felinos en Costa Rica.](espcies_tabla.PNG){fig-alt="Tabla de registro de especies de felinos en Costa Rica." fig-align="center"}
+
+## 2. Especies de felinos registrads por mes
+
+#### Generación de nuevas columnas para manejo de datos.
+
+En orden de facilitar el manejo de datos, se utliza la función de `mutate()` para extraer los años, meses y días de las fechas de avistamiento y crear nuevas columnas.
+
+```{r}
+#| label: reorganizacion-meses
+
+felinos <-
+  felinos |>
+  mutate(year = as.numeric(format(fecha,'%Y'))) |>
+  mutate(month = as.numeric(format(fecha,'%m'))) |> 
+  arrange((month))|>
+  mutate(day = as.numeric(format(fecha,'%d')))
+```
+
+#### Generación de nuevas columnas para manejo de datos.
+
+La librería de `ggplot2` permite la generación de una variedad de gráficos. Para este caso, se utiliza la función de `geom_bar()` de donde se obtiene un gráfico de barras que permite la visualización del numero de individuos por cada especie registrados por cada mes.Los gráficos de barras pueden generarse también con la función de `geom_col()`.
+
+Se utiliza la función de `theme` con sus diferentes argumentos para generar manualmente un estilo al gráfico y la librería de `RColorBrewer` que permite utilizar rampas de color.
+
+```{r}
+#| label: plot-registro-espcies-mensual
+#| warning: false
+#| message: false
+
+library(RColorBrewer) #para dar formatos de color a la grafica
+
+meses = c("1" = "Ene", "2" = "Feb", "3" = "Mar", "4" = "Abr", 
+           "5" = "May", "6" = "Jun", "7" = "Jul", "8" = "Ago", 
+           "9" =  "Sep", "10" =  "Oct", "11" =  "Nov", "12" =  "Dic")
+
+especies_plot <-
+felinos |>
+  ggplot(aes(x = month, fill = especie)) +
+  scale_x_continuous(breaks = seq(1,12,1), labels = meses)+
+  geom_bar() +
+    labs(x = "Meses",
+         y = "Número de individuos",
+         title = "Especies de felinos registrados en Costa Rica",
+         subtitle = "Registro por mes de 1839 al 2022",
+         fill = "Especie") +
+  theme(panel.background = element_rect(fill = 'transparent'),
+        panel.grid = element_line(color="gray80"),
+        panel.border = element_rect(color = "gray", fill='transparent', size = 2)) +
+  scale_fill_manual(values=brewer.pal(n = 6, name = "GnBu"))
+
+# Generación de gráfico con plotly
+
+ ggplotly(especies_plot) |> 
+   config(locale = 'es') |>
+  layout(title = list(text = paste0('<b>','Especies de felinos registrados en Costa  Rica' ,'</b> <br>', # <br> para nueva linea en formato HTML y <b> para dar formato en negritass
+                                    '<sup>', # Estilo de nueva linea, más pequeña que el titulo original. <sup> es una función de HTML que otorga este estilo
+                                    "Registro por mes de 1839 al 2022",
+                                    '</sup>')))
+```
+
+## 3. Mapa de felinos en Costa Rica
+
+#### Transformación de tipo de datos y asignación de SCR.
+
+Hasta ahora se estuvo trabajando con los datos de felinos como un dataframe, sin embargo para poder incluirlos a un mapa deben tener un formato vectorial, para que lo que se usa la función de `st_as_sf()` del paquete `sf`. A su vez, los datos deben estar en un sistemas coordenadas compatibles, nos aseguramos de ello con la función de `st_crs()` para asignar un scr y `st_transform()` para cambiar el scr.
+
+```{r}
+#| label: transfprmacion-coordenadas-tipo-datos
+#| warning: false
+#| echo: true
+
+#Transformación de dataframe a shapefile
+
+felinos_v <-
+  st_as_sf(felinos, coords = c("long", "lat"))
+
+class(felinos_v) #para corroborar el cambio de tipo de datos
+
+#Definición de SCR
+
+st_crs(felinos_v) <- 4326
+
+# Transformación del CRS del objeto provincias a WGS84 (EPSG = 4326)
+
+ASP <-
+  ASP |>
+  st_transform(4326)
+
+```
+
+#### Creación de mapa interactivo
+
+La generación de mapas interactivos se realiza a través del paquete de `leaflet`, que funciona igual que los Sistemas de Infromación Geográfica base con capas que se van añadiendo en un orden definido para generar un mapa final. Leaflet, se complementa con diferentes paquetes *hermanos* que permiten dar estilo y presentación al mapa.
+
+```{r}
+#| label: generacion-mapa-interactivo
+
+colores_altitud <-
+  colorNumeric(terrain.colors(25),
+               values(altitud),
+               na.color = "transparent")
+
+leaflet() |>
+  setView(# centro y nivel inicial de acercamiento
+    lng = -84.19452,
+    lat = 9.572735,
+    zoom = 7) |>
+  addTiles(group = "OpenStreetMap") |>
+  addProviderTiles(providers$Esri.NatGeoWorldMap)|>
+  addRasterImage( # capa raster
+    raster(altitud),# conversión de SpatRaster a RasterLayer 
+    colors = colores_altitud, # paleta de colores
+    opacity = 0.6,
+    group = "Altitud",
+  ) |>
+  addLegend(
+    title = "Altitud",
+    values = values(altitud),
+    pal = colores_altitud,
+    position = "bottomright",
+    group = "Altitud"
+  ) |>
+  addPolygons(
+    # capa de provincias (polígonos)
+    data = ASP,
+    color = "black",
+    fillColor = "transparent",
+    stroke = TRUE,
+    weight = 1.3,
+    group = "Áreas Silvestres Protegidas",
+    popup = paste(
+      paste0("<strong>Área Silvestre Protegida: </strong>", ASP$nombre_asp),
+      sep = '<br/>')
+    ) |>
+  addCircleMarkers(
+    # capa de registros de presencia (puntos)
+    data = felinos_v,
+    stroke = F,
+    radius = 5,
+    fillColor = 'darkblue',
+    fillOpacity = 1,
+    group = "Felinos",
+    popup = paste(
+      paste0("<strong>Especie: </strong>", felinos$especie), 
+      paste0("<br><strong>Provincia: </strong>", felinos$provincia), 
+      paste0("<br><strong>Localidad: </strong>", felinos$localidad), 
+      paste0("<br><strong>Fecha: </strong>", felinos$fecha)
+    )#<br> asigna una nueva línea para  una mejor visualización en el popup.
+  ) |>
+  addLayersControl(
+    baseGroups = c("OpenStreetMap", "Esri.NatGeoWorldMap"),
+    overlayGroups = c("Felinos", "Altitud", "Áreas Silvestres Protegidas")) |> # control de capas
+  addResetMapButton() |> # botón de reinicio
+  addSearchOSM() |> # búsqueda en OSM
+  addMouseCoordinates() |> # coordenadas del puntero del ratón
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE)) |> # barra de escala
+  addMiniMap(position = "bottomleft")  # mapa de ubicación
+
+```
