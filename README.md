@@ -8,4 +8,4 @@ En el siguiente documento se presenta un breve análisis de la distribución de 
 
 Con la información anterior se logra identificar que la mayoría de los avistamientos se dan durante los meses de  diciembre a marzo y una mayor incidencia de las especies *Leopardus pardalis y Puma concolor*. La  distribución espacial de felinos se concentra en las cercanías Parque Nacional Corcovado, Parque Nacional Tortuguero, PArque Nacional Santa Rosa, Parque Nacional Arenal y Zona Protectora Arenal-Monteverde en altitudes entre de 0 hasta apriximadamente los 2000 msnm.
 
-Para mayor detalle puede consultar el sitio: [https://julietalopher.github.io/tarea_3/](https://julietalopher.github.io/tarea_3/)
+Para mayor detalle puede consultar el sitio: [https://julietalopher.github.io/tarea_geoespacial/](https://julietalopher.github.io/tarea_geoespacial/)
